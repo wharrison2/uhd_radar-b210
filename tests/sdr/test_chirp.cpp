@@ -26,7 +26,7 @@ TEST(assignVarFromYaml, loadsDefault){
     EXPECT_EQ(chirp.getPhaseDither(), true);
 }
 
-/**
+/**S
  * @brief tests Chirp::setTimeOffset(double value) for valid inputs
  *
  * Time offset [s] may be any non-negative double
