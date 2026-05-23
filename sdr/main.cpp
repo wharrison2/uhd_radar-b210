@@ -13,6 +13,7 @@ void sig_int_handler(int) {
 
 // FILENAMES
 string chirp_loc;
+string chirp1_loc; // Path to ch1 waveform file (empty if not using a second waveform)
 string save_loc;
 string gps_save_loc;
 
@@ -293,6 +294,13 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   gps_save_loc = files["gps_loc"].as<string>();
   chirp.setMaxChirpsPerFile(files["max_chirps_per_file"].as<int>());
 
+  // Load ch1 waveform path if GENERATE1 is present and RF1.transmit is true
+  chirp1_loc = "";
+  if (config["GENERATE1"] && config["RF1"]["transmit"].as<bool>(false)) {
+    chirp1_loc = config["GENERATE1"]["out_file"].as<string>();
+    cout << "INFO: TX channel 1 will use independent waveform: " << chirp1_loc << endl;
+  }
+
   // Calculated parameters
 
   tr_off_delay = chirp.getTxDuration() + chirp.getTrOffTrail(); // Time before turning off GPIO
@@ -536,7 +544,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
 void transmit_worker(tx_streamer::sptr& tx_stream, rx_streamer::sptr& rx_stream, Chirp& chirp, Sdr& sdr){
   set_thread_priority_safe(1.0, true);
 
-  // open file to stream from
+  // open file to stream from (ch0)
   ifstream infile("../../" + chirp_loc, ifstream::binary);
 
   if (!infile.is_open())
@@ -560,11 +568,35 @@ void transmit_worker(tx_streamer::sptr& tx_stream, rx_streamer::sptr& rx_stream,
     exit(1);
   }
 
-  vector<std::complex<float>> tx_buff(num_tx_samps); // Ready-to-transmit samples
-  vector<std::complex<float>> chirp_unmodulated(num_tx_samps); // Chirp samples before any phase modulation
+  const size_t bytes_per_samp = convert::get_bytes_per_item(sdr.getCpuFormat());
 
-  infile.read((char *)&chirp_unmodulated.front(), num_tx_samps * convert::get_bytes_per_item(sdr.getCpuFormat()));
-  tx_buff = chirp_unmodulated;
+  // Ch0 buffers
+  vector<std::complex<float>> tx_buff_ch0(num_tx_samps);
+  vector<std::complex<float>> chirp_unmodulated_ch0(num_tx_samps);
+  infile.read((char *)&chirp_unmodulated_ch0.front(), num_tx_samps * bytes_per_samp);
+  tx_buff_ch0 = chirp_unmodulated_ch0;
+
+  // Ch1 buffers (only allocated and loaded if using an independent ch1 waveform)
+  const bool use_ch1_waveform = !chirp1_loc.empty();
+  ifstream infile_ch1;
+  vector<std::complex<float>> tx_buff_ch1;
+  vector<std::complex<float>> chirp_unmodulated_ch1;
+
+  if (use_ch1_waveform) {
+    infile_ch1.open("../../" + chirp1_loc, ifstream::binary);
+    if (!infile_ch1.is_open()) {
+      cout << endl
+           << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
+      cout << "ERROR! Failed to open ch1 waveform input file: " << chirp1_loc << endl;
+      cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl
+           << endl;
+      exit(1);
+    }
+    chirp_unmodulated_ch1.resize(num_tx_samps);
+    tx_buff_ch1.resize(num_tx_samps);
+    infile_ch1.read((char *)&chirp_unmodulated_ch1.front(), num_tx_samps * bytes_per_samp);
+    tx_buff_ch1 = chirp_unmodulated_ch1;
+  }
 
   // Transmit metadata structure
   tx_metadata_t tx_md;
@@ -586,16 +618,21 @@ void transmit_worker(tx_streamer::sptr& tx_stream, rx_streamer::sptr& rx_stream,
 
   while ((chirp.getNumPulses() < 0) || ((pulses_scheduled - error_count) < chirp.getNumPulses()))
   {
-    // Setup next chirp for modulation
+    // Apply phase dithering to ch0 if enabled
     if (chirp.getPhaseDither()) {
-      transform(chirp_unmodulated.begin(), chirp_unmodulated.end(), tx_buff.begin(), std::bind1st(std::multiplies<complex<float>>(), polar((float) 1.0, get_next_phase(true))));
+      transform(chirp_unmodulated_ch0.begin(), chirp_unmodulated_ch0.end(), tx_buff_ch0.begin(), std::bind1st(std::multiplies<complex<float>>(), polar((float) 1.0, get_next_phase(true))));
+    }
+
+    // Apply independent phase dithering to ch1 if enabled
+    if (use_ch1_waveform && sdr.getPhaseDitherCh1()) {
+      transform(chirp_unmodulated_ch1.begin(), chirp_unmodulated_ch1.end(), tx_buff_ch1.begin(), std::bind1st(std::multiplies<complex<float>>(), polar((float) 1.0, get_next_phase_ch1())));
     }
 
     /*
     The idea here is scheduler a handful of chirps ahead to let
     the transport layer (i.e. libUSB or whatever it is for ethernet)
     buffering actually do its job.
-    
+
     In practice, letting this schedule 10s of pulses ahead seems to
     perform well. According to the documentation, however, the maximum
     queue depth is 8 for both the B20x-mini and X310. (And each pulse
@@ -621,9 +658,19 @@ void transmit_worker(tx_streamer::sptr& tx_stream, rx_streamer::sptr& rx_stream,
     // TX
     rx_time = chirp.getTimeOffset() + (chirp.getPulseRepInt() * pulses_scheduled); // TODO: How do we track timing
     tx_md.time_spec = time_spec_t(rx_time - chirp.getTxLead());
-    
+
     if (sdr.getTransmit()) {
-      n_samp_tx = tx_stream->send(&tx_buff.front(), num_tx_samps, tx_md, 60); // TODO: Think about timeout
+      if (use_ch1_waveform) {
+        // Send different waveforms per channel
+        vector<void*> tx_buffs = {
+          static_cast<void*>(tx_buff_ch0.data()),
+          static_cast<void*>(tx_buff_ch1.data())
+        };
+        n_samp_tx = tx_stream->send(tx_buffs, num_tx_samps, tx_md, 60); // TODO: Think about timeout
+      } else {
+        // Single buffer broadcast to all channels (original behavior)
+        n_samp_tx = tx_stream->send(&tx_buff_ch0.front(), num_tx_samps, tx_md, 60); // TODO: Think about timeout
+      }
     }
 
     // RX
@@ -640,8 +687,11 @@ void transmit_worker(tx_streamer::sptr& tx_stream, rx_streamer::sptr& rx_stream,
     }
   }
 
-  cout << "[TX] Closing file" << endl;
+  cout << "[TX] Closing file(s)" << endl;
   infile.close();
+  if (use_ch1_waveform) {
+    infile_ch1.close();
+  }
   cout << "[TX] Done." << endl;
 
 }

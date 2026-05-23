@@ -24,6 +24,24 @@ GENERATE:
     show_plot: False                     # Display a time-domain plot of the
                                          #   generated chirp
 
+### CHIRP AND PULSE PARAMETERS FOR TX CHANNEL 1 (OPTIONAL)
+# Uncomment and populate GENERATE1 to transmit an independent waveform on TX
+# channel 1. Requires RF1.transmit: true and tx_channels to include "1".
+# sample_rate is inherited from GENERATE above (B210 hardware constraint).
+# chirp_bandwidth: 0 produces a CW tone at lo_offset_sw (e.g. for use as an LO).
+# pulse_length must produce the same number of samples as GENERATE.pulse_length.
+#
+# GENERATE1:
+#     chirp_type: 'linear'
+#     chirp_bandwidth: 0e6          # [Hz] 0 = CW tone; >0 = swept chirp
+#     lo_offset_sw: 0e6             # [Hz] Baseband center frequency of ch1 waveform
+#     window: 'rectangular'
+#     chirp_length: *chirp_len      # [s] Must match GENERATE.chirp_length
+#     pulse_length: *pulse_len      # [s] Must match GENERATE.pulse_length
+#     out_file: "data/chirp1.bin"
+#     show_plot: False
+#     phase_dithering: false        # Independent of CHIRP.phase_dithering (ch0)
+
 ### DEVICE CONNECTION AND DATA TRANSFER
 DEVICE:
     # USRP device arguments are used to identify specific SDRs (if multiple are

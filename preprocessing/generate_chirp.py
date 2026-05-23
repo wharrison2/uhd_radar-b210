@@ -6,7 +6,7 @@ import scipy.fft
 import matplotlib.pyplot as plt
 from ruamel.yaml import YAML
 
-def generate_chirp(config):
+def generate_chirp(config, section="GENERATE"):
     """
     Generate a chirp according to parameters in the config dictionary, typically
     loaded from a config YAML file.
@@ -21,11 +21,16 @@ def generate_chirp(config):
     This function does not convert the complex numpy array to the cpu format
     expected by the radar code. If you want to produce samples to feed the radar
     code, look at `generate_from_yaml_filename` (later in this file) instead.
+
+    The optional `section` parameter selects which YAML section to read waveform
+    parameters from (e.g. "GENERATE" or "GENERATE1"). sample_rate is always
+    taken from "GENERATE" regardless of section, because the B210 enforces the
+    same sample rate on both TX channels.
     """
     # Load parameters
-    gen_params = config["GENERATE"]
+    gen_params = config[section]
     chirp_type = gen_params["chirp_type"]
-    sample_rate = gen_params["sample_rate"]
+    sample_rate = config["GENERATE"]["sample_rate"]  # always from GENERATE (hardware constraint)
     chirp_bandwidth = gen_params["chirp_bandwidth"]
     offset = gen_params.get("lo_offset_sw", 0)
     window = gen_params["window"]
@@ -75,13 +80,17 @@ def generate_chirp(config):
     return ts_zp, chirp_complex
 
 
-def generate_from_yaml_filename(yaml_filename):
+def generate_from_yaml_filename(yaml_filename, section="GENERATE"):
     """
     Generate a chirp and save it to a binary file, according to parameters loaded
     from the supplied YAML filename.
 
     Typically, this function is called to produce a chirp file. The save location
-    of this file is specified in the YAML file, under the GENERATE section.
+    of this file is specified in the YAML file, under the selected section.
+
+    The optional `section` parameter selects which YAML section to read waveform
+    parameters from (e.g. "GENERATE" or "GENERATE1"). sample_rate is always
+    taken from "GENERATE" regardless of section.
 
     This function also returns the numpy array written to the file. Note that this
     is different from the chirp_complex array returned by generate_chirp(), as this
@@ -95,14 +104,14 @@ def generate_from_yaml_filename(yaml_filename):
     config = yaml.load(stream)
 
     # Load some additional paramters needed here
-    filename = config['GENERATE']["out_file"]
-    show_plot = config['GENERATE']['show_plot']
-    sample_rate = config['GENERATE']['sample_rate']
+    filename = config[section]["out_file"]
+    show_plot = config[section]['show_plot']
+    sample_rate = config['GENERATE']['sample_rate']  # always from GENERATE (hardware constraint)
 
     cpu_format = config['DEVICE'].get('cpu_format', 'fc32')
 
     # Create the chirp
-    ts, chirp_complex = generate_chirp(config)
+    ts, chirp_complex = generate_chirp(config, section=section)
 
     if ts is None:
         print("Error occured when generating chirp.")

@@ -62,6 +62,24 @@ void Sdr::loadConfigFromYaml(const string& kYamlFile) {
   rx_ant = rf1["rx_ant"].as<string>();
 
   transmit = rf0["transmit"].as<bool>(true); // True if transmission enabled
+  transmit_ch1 = rf1["transmit"].as<bool>(false); // True if ch1 independent waveform enabled
+
+  // Load ch1 phase dithering and validate pulse length if GENERATE1 is present
+  phase_dither_ch1 = false;
+  if (config["GENERATE1"]) {
+    phase_dither_ch1 = config["GENERATE1"]["phase_dithering"].as<bool>(false);
+    double ch1_pulse_len = config["GENERATE1"]["pulse_length"]
+                             ? config["GENERATE1"]["pulse_length"].as<double>()
+                             : config["GENERATE1"]["chirp_length"].as<double>();
+    double ch0_pulse_len = config["GENERATE"]["pulse_length"]
+                             ? config["GENERATE"]["pulse_length"].as<double>()
+                             : config["GENERATE"]["chirp_length"].as<double>();
+    double sr = config["GENERATE"]["sample_rate"].as<double>();
+    if (std::lround(ch1_pulse_len * sr) != std::lround(ch0_pulse_len * sr)) {
+      cout << "WARNING: GENERATE1.pulse_length produces a different sample count than GENERATE.pulse_length. "
+           << "Both TX channels must transmit the same number of samples.\n";
+    }
+  }
 
 /**
 * Sanity checks for configuration parameters
@@ -437,6 +455,8 @@ double Sdr::getBw() const {return bw;}
 string Sdr::getRxAnt() const {return rx_ant;}
 string Sdr::getTxAnt() const {return tx_ant;}
 bool Sdr::getTransmit() const {return transmit;}
+bool Sdr::getTransmitCh1() const {return transmit_ch1;}
+bool Sdr::getPhaseDitherCh1() const {return phase_dither_ch1;}
 
 // USRP
 usrp::multi_usrp::sptr Sdr::getUsrp() const {return usrp;}

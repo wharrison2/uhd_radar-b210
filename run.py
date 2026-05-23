@@ -104,6 +104,15 @@ class RadarProcessRunner():
             print(e)
             exit(1)
 
+        # Generate ch1 chirp if GENERATE1 is present and RF1.transmit is true
+        if ('GENERATE1' in self.config) and self.config.get('RF1', {}).get('transmit', False):
+            print("--- Generating GENERATE1 chirp for TX channel 1 ---")
+            try:
+                generate_from_yaml_filename(self.yaml_filename, section='GENERATE1')
+            except Exception as e:
+                print(e)
+                exit(1)
+
         # Compile UHD program
         def run_and_fail_on_nonzero(cmd):
             retval = os.system(cmd)
