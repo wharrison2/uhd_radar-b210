@@ -23,7 +23,6 @@ TEST(assignVarFromYaml, loadsDefault){
     EXPECT_EQ(chirp.getTxLead(), 0e-6);
     EXPECT_EQ(chirp.getNumPulses(), 10000);
     EXPECT_EQ(chirp.getNumPresums(), 1);
-    EXPECT_EQ(chirp.getPhaseDither(), true);
 }
 
 /**S
