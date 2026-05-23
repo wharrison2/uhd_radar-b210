@@ -101,8 +101,40 @@ void Sdr::loadConfigFromYaml(const string& kYamlFile) {
   if (config["GENERATE"]["sample_rate"].as<double>() != tx_rate){
     cout << "WARNING: TX sample rate does not match sample rate of generated chirp.\n";
   }
-  if (bw < config["GENERATE"]["chirp_bandwidth"].as<double>() && bw != 0){
-    cout << "WARNING: RX bandwidth is narrower than the chirp bandwidth.\n";
+  // Check whether each channel's signal fits within its analog filter passband.
+  // The analog filter (RF0.bw / RF1.bw) is centered at the LO (DC in baseband)
+  // and passes [-bw/2, +bw/2]. lo_offset_sw shifts the signal away from DC, so
+  // a chirp spanning [offset - chirp_bw/2, offset + chirp_bw/2] can be partially
+  // or fully outside the passband.
+  {
+    double bw0       = config["RF0"]["bw"].as<double>(0);
+    double offset0   = config["GENERATE"]["lo_offset_sw"].as<double>(0);
+    double chirp_bw0 = config["GENERATE"]["chirp_bandwidth"].as<double>(0);
+    if (bw0 != 0) {
+      bool clipped = (offset0 - chirp_bw0 / 2.0 < -bw0 / 2.0) ||
+                     (offset0 + chirp_bw0 / 2.0 >  bw0 / 2.0);
+      if (clipped) {
+        cout << "WARNING: GENERATE signal (lo_offset_sw=" << offset0/1e6 << " MHz, "
+             << "chirp_bandwidth=" << chirp_bw0/1e6 << " MHz) extends outside the "
+             << "RF0.bw analog filter (" << bw0/1e6 << " MHz passband). "
+             << "Part of the signal will be attenuated.\n";
+      }
+    }
+  }
+  if (config["GENERATE1"]) {
+    double bw1       = config["RF1"]["bw"].as<double>(0);
+    double offset1   = config["GENERATE1"]["lo_offset_sw"].as<double>(0);
+    double chirp_bw1 = config["GENERATE1"]["chirp_bandwidth"].as<double>(0);
+    if (bw1 != 0) {
+      bool clipped = (offset1 - chirp_bw1 / 2.0 < -bw1 / 2.0) ||
+                     (offset1 + chirp_bw1 / 2.0 >  bw1 / 2.0);
+      if (clipped) {
+        cout << "WARNING: GENERATE1 signal (lo_offset_sw=" << offset1/1e6 << " MHz, "
+             << "chirp_bandwidth=" << chirp_bw1/1e6 << " MHz) extends outside the "
+             << "RF1.bw analog filter (" << bw1/1e6 << " MHz passband). "
+             << "Part of the signal will be attenuated.\n";
+      }
+    }
   }
 }
 

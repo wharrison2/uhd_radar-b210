@@ -330,7 +330,53 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   cout << "INFO: Number of TX samples: " << num_tx_samps << endl;  //needs to be after chirp and sdr object are both made
   cout << "INFO: Number of RX samples: " << num_rx_samps << endl << endl;  //needs to be after chirp and sdr object are both made
 
- 
+  /*** TX SUMMARY ***/
+  {
+    auto print_channel_summary = [](const string& label,
+                                    double lo_freq, double lo_offset_sw,
+                                    double chirp_bw, double tx_gain,
+                                    bool phase_dither, bool active) {
+      double center = lo_freq + lo_offset_sw;
+      cout << label << ":" << endl;
+      if (!active) {
+        cout << "  (not transmitting)" << endl;
+        return;
+      }
+      cout << "  LO frequency : " << lo_freq / 1e6 << " MHz" << endl;
+      if (lo_offset_sw != 0)
+        cout << "  SW LO offset : " << lo_offset_sw / 1e6 << " MHz" << endl;
+      cout << "  RF center    : " << center / 1e6 << " MHz" << endl;
+      cout << "  RF range     : " << (center - chirp_bw/2) / 1e6
+           << " - " << (center + chirp_bw/2) / 1e6
+           << " MHz  (BW " << chirp_bw/1e6 << " MHz)" << endl;
+      cout << "  TX gain      : " << tx_gain << " dB" << endl;
+      cout << "  Phase dither : " << (phase_dither ? "enabled" : "disabled") << endl;
+    };
+
+    cout << "======= TX SUMMARY =======" << endl;
+    print_channel_summary(
+      "RF A: " + config["RF0"]["tx_ant"].as<string>(),
+      config["RF0"]["freq"].as<double>(),
+      config["GENERATE"]["lo_offset_sw"].as<double>(0),
+      config["GENERATE"]["chirp_bandwidth"].as<double>(0),
+      config["RF0"]["tx_gain"].as<double>(),
+      sdr.getPhaseDitherCh0(),
+      sdr.getTransmit()
+    );
+    if (config["GENERATE1"]) {
+      print_channel_summary(
+        "RF B: " + config["RF1"]["tx_ant"].as<string>(),
+        config["RF1"]["freq"].as<double>(),
+        config["GENERATE1"]["lo_offset_sw"].as<double>(0),
+        config["GENERATE1"]["chirp_bandwidth"].as<double>(0),
+        config["RF1"]["tx_gain"].as<double>(),
+        sdr.getPhaseDitherCh1(),
+        sdr.getTransmitCh1()
+      );
+    }
+    cout << "==========================" << endl << endl;
+  }
+
   // update the offset time for start of streaming to be offset from the current usrp time
   chirp.setTimeOffset(chirp.getTimeOffset() + time_spec_t(sdr.getUsrp()->get_time_now()).get_real_secs());  //needs to be after chirp and sdr object are both made
 
