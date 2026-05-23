@@ -101,6 +101,38 @@ void Sdr::loadConfigFromYaml(const string& kYamlFile) {
   if (config["GENERATE"]["sample_rate"].as<double>() != tx_rate){
     cout << "WARNING: TX sample rate does not match sample rate of generated chirp.\n";
   }
+  // Check whether each channel's signal fits within the digital Nyquist limit.
+  // The DAC can only represent baseband frequencies in (-sample_rate/2, +sample_rate/2).
+  // If the signal extends to or beyond that limit it will alias.
+  {
+    double sr      = config["GENERATE"]["sample_rate"].as<double>();
+    double offset0 = config["GENERATE"]["lo_offset_sw"].as<double>(0);
+    double bw0     = config["GENERATE"]["chirp_bandwidth"].as<double>(0);
+    double extent0 = (offset0 < 0 ? -offset0 : offset0) + bw0 / 2.0;
+    if (extent0 >= sr / 2.0) {
+      cout << "WARNING: GENERATE signal (lo_offset_sw=" << offset0/1e6
+           << " MHz, chirp_bandwidth=" << bw0/1e6
+           << " MHz) reaches " << extent0/1e6
+           << " MHz from DC, at or beyond the Nyquist limit of "
+           << sr/2e6 << " MHz (sample_rate=" << sr/1e6
+           << " MHz). The signal will alias. Increase sample_rate or reduce lo_offset_sw.\n";
+    }
+  }
+  if (config["GENERATE1"]) {
+    double sr      = config["GENERATE"]["sample_rate"].as<double>();
+    double offset1 = config["GENERATE1"]["lo_offset_sw"].as<double>(0);
+    double bw1     = config["GENERATE1"]["chirp_bandwidth"].as<double>(0);
+    double extent1 = (offset1 < 0 ? -offset1 : offset1) + bw1 / 2.0;
+    if (extent1 >= sr / 2.0) {
+      cout << "WARNING: GENERATE1 signal (lo_offset_sw=" << offset1/1e6
+           << " MHz, chirp_bandwidth=" << bw1/1e6
+           << " MHz) reaches " << extent1/1e6
+           << " MHz from DC, at or beyond the Nyquist limit of "
+           << sr/2e6 << " MHz (sample_rate=" << sr/1e6
+           << " MHz). The signal will alias. Increase sample_rate or reduce lo_offset_sw.\n";
+    }
+  }
+
   // Check whether each channel's signal fits within its analog filter passband.
   // The analog filter (RF0.bw / RF1.bw) is centered at the LO (DC in baseband)
   // and passes [-bw/2, +bw/2]. lo_offset_sw shifts the signal away from DC, so

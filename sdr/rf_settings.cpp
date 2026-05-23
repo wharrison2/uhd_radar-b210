@@ -151,16 +151,26 @@ bool set_rf_params_multi(usrp::multi_usrp::sptr usrp, YAML::Node rf0, YAML::Node
     usrp->set_tx_rate(tx_rate1, tx_channels[1]);
     usrp->set_rx_rate(rx_rate1, rx_channels[1]);
 
-    // set center frequency at same time for both daughterboards
+    // On devices with a shared LO (e.g. B210 with a single AD9361), both
+    // channels must use the same carrier frequency. The second set_tx_freq
+    // call would silently overwrite the shared LO set by the first, so we
+    // always tune both channels to RF0.freq and warn if RF1.freq differs.
+    // Use lo_offset_sw in GENERATE1 to position ch1 at a different RF freq.
+    if (fc0 != fc1) {
+        cout << "WARNING: B210 has a shared LO — RF1.freq (" << fc1/1e6
+             << " MHz) is ignored. Both channels will use RF0.freq ("
+             << fc0/1e6 << " MHz). Use lo_offset_sw in GENERATE1 to shift "
+             << "ch1 to the desired RF frequency." << endl;
+    }
+
     usrp->clear_command_time();
     usrp->set_command_time(usrp->get_time_now() + time_spec_t(0.1));
 
     tune_request_t tune_request0(fc0);
-    tune_request_t tune_request1(fc1);
     usrp->set_tx_freq(tune_request0, tx_channels[0]);
     usrp->set_rx_freq(tune_request0, rx_channels[0]);
-    usrp->set_tx_freq(tune_request1, tx_channels[1]);
-    usrp->set_rx_freq(tune_request1, rx_channels[1]);
+    usrp->set_tx_freq(tune_request0, tx_channels[1]);
+    usrp->set_rx_freq(tune_request0, rx_channels[1]);
 
     // sleep 100ms (~10ms after retune occurs) to allow LO to lock
     this_thread::sleep_for(chrono::milliseconds(110)); 
