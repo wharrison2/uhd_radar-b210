@@ -414,24 +414,25 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   float inversion_phase; // Store phase to use for phase inversion of this chirp
 
   //Creating GPS log & vars
-  printf("Starting GPS code...\n");
   using namespace boost::asio;
 
   io_service io;
   serial_port serial(io);
 
-  printf("Opening serial port...\n");
-  serial.open("/dev/ttyACM0");  // Adjust if needed for your system
-  printf("Serial port opened.\n");
-  serial.set_option(serial_port_base::baud_rate(115200));
-  serial.set_option(serial_port_base::character_size(8));
-  serial.set_option(serial_port_base::parity(serial_port_base::parity::none));
-  serial.set_option(serial_port_base::stop_bits(serial_port_base::stop_bits::one));
-  serial.set_option(serial_port_base::flow_control(serial_port_base::flow_control::none));
+  if (sdr.getClkRef() == "gpsdo") {
+    printf("Opening serial port...\n");
+    serial.open("/dev/ttyACM0");  // Adjust if needed for your system
+    printf("Serial port opened.\n");
+    serial.set_option(serial_port_base::baud_rate(115200));
+    serial.set_option(serial_port_base::character_size(8));
+    serial.set_option(serial_port_base::parity(serial_port_base::parity::none));
+    serial.set_option(serial_port_base::stop_bits(serial_port_base::stop_bits::one));
+    serial.set_option(serial_port_base::flow_control(serial_port_base::flow_control::none));
 
-  // Send UBX commands to configure GPS
-  configureRate(serial, 3);              // 3 Hz update rate
-  configureNMEAMessages(serial, 1);      // Enable only GGA
+    // Send UBX commands to configure GPS
+    configureRate(serial, 3);              // 3 Hz update rate
+    configureNMEAMessages(serial, 1);      // Enable only GGA
+  }
 
   ofstream gps_output("gps_log.txt");
 

@@ -1,3 +1,4 @@
+import os
 import sys
 import shutil
 import argparse
@@ -20,14 +21,20 @@ def save_data(yaml_filename, extra_files={}, alternative_rx_samps_loc=None, num_
 
     shutil.copy(yaml_filename, file_prefix + "_config.yaml")
     if config['FILES']['max_chirps_per_file'] == -1:
-            
-            shutil.move(config['FILES']['save_loc'], file_prefix + "_rx_samps.bin")
+            rx_loc = config['FILES']['save_loc']
+            if os.path.exists(rx_loc):
+                shutil.move(rx_loc, file_prefix + "_rx_samps.bin")
+            else:
+                print(f"WARNING: RX samples file not found at '{rx_loc}' — skipping move.")
     else:
         if config['RUN_MANAGER']['save_partial_files']:
             base_filename = config['FILES']['save_loc']
             for i in range(num_files):
                 f = base_filename + "." + str(i)
-                shutil.copy(f, file_prefix + "_p" + str(i) + "_rx_samps.bin")
+                if os.path.exists(f):
+                    shutil.copy(f, file_prefix + "_p" + str(i) + "_rx_samps.bin")
+                else:
+                    print(f"WARNING: Partial RX file not found at '{f}' — skipping.")
         if alternative_rx_samps_loc is not None:
             shutil.copy(alternative_rx_samps_loc, file_prefix + "_rx_samps.bin")
 
