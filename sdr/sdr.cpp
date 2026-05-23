@@ -404,7 +404,18 @@ void Sdr::setupGpio(){
 void Sdr::setupTx(){
   // Stream formats
   stream_args_t tx_stream_args(cpu_format, otw_format);
-  tx_stream_args.channels = tx_channel_nums;
+
+  // Only stream to channels that are actively transmitting.
+  // Channel 0 is always included (controlled by the top-level transmit flag).
+  // Channel 1 is only included when transmit_ch1 is true; otherwise it is
+  // excluded from the stream entirely so it cannot receive a broadcast waveform.
+  vector<size_t> active_tx_channels = {tx_channel_nums[0]};
+  if (tx_channel_nums.size() > 1 && transmit_ch1) {
+    active_tx_channels.push_back(tx_channel_nums[1]);
+  } else if (tx_channel_nums.size() > 1 && !transmit_ch1) {
+    cout << "INFO: TX channel 1 excluded from stream (RF1.transmit: false)." << endl;
+  }
+  tx_stream_args.channels = active_tx_channels;
 
   // tx streamer
   if (transmit) {
