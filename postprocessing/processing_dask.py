@@ -349,7 +349,10 @@ def invert_phase_dithering(data, phase_codes_filename, override_errors=False):
     if not override_errors:
         if "phase_dithering_inversion" in data.attrs:
             raise Exception("It looks like phase dithering inversion has already been run on this dataset.")
-        if not data.attrs['config']["CHIRP"].get("phase_dithering", False):
+        cfg = data.attrs['config']
+        phase_dithering_enabled = (cfg.get("GENERATE", {}).get("phase_dithering", False) or
+                                   cfg.get("CHIRP", {}).get("phase_dithering", False))
+        if not phase_dithering_enabled:
             raise Exception("phase_dithering is not set in the config file. Are you sure you want to invert this file?")
     
     phases = np.fromfile(phase_codes_filename, dtype=np.float32, count=len(data.pulse_idx))

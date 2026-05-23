@@ -23,6 +23,7 @@ GENERATE:
                                          #   containing the pulse samples
     show_plot: False                     # Display a time-domain plot of the
                                          #   generated chirp
+    phase_dithering: true                # Enable phase dithering for TX channel 0
 
 ### DEVICE CONNECTION AND DATA TRANSFER
 DEVICE:
@@ -114,7 +115,6 @@ CHIRP:
                                          #   stopped
     num_presums: 1                       # Number of received pulses to average
                                          #   over before writing to file
-    phase_dithering: true                # Enable phase dithering
 ### DURING-RECORDING FILE LOCATIONS
 FILES:
     chirp_loc: *ch_sent                  # Chirp file to transmit

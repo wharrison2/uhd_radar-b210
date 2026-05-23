@@ -11,6 +11,7 @@ GENERATE:
     pulse_length: &pulse_len 10e-6    # [s] total pulse length (chirp + symmetric zero padding)    
     out_file: &ch_sent "data/chirp.bin"   # The name of the output binary file
     show_plot: False                 # Display a time-domain plot of the generated chirp
+    phase_dithering: true            # Enable phase dithering for TX channel 0
 
 # ----------------- TX/RX for USRP_B205mini-i --------------------- #
 DEVICE:
@@ -59,7 +60,6 @@ CHIRP:
     tx_lead: 0e-6        # Time between start of TX and RX[s]
     num_pulses: &num_pulses 6000000        # No. of chirps to TX/RX - set to -1 to continuously transmit pulses until stopped
     num_presums: 1
-    phase_dithering: true
 FILES:
     chirp_loc: *ch_sent                 # Chirp to transmit
     save_loc: &save_loc "data/rx_samps.bin" #"/dev/shm/rx_samps.bin" #"/media/usb/usrp_test/rx_samps.bin" #"data/rx_samps.bin"  # Save rx data here

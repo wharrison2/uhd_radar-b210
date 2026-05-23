@@ -43,8 +43,8 @@ std::mutex cout_mutex;
  * @param sample_sum Sum error-free RX pulses
  * @param inversion_phase Phase to use for phase inversion of this chirp
  */
-void handleRxBuffer(size_t n_samps_in_rx_buff, rx_metadata_t& rx_md, Chirp& chirp, vector<complex<float>>& buff, vector<complex<float>>& sample_sum, float& inversion_phase) {
-  if (chirp.getPhaseDither()) {
+void handleRxBuffer(size_t n_samps_in_rx_buff, rx_metadata_t& rx_md, Chirp& chirp, vector<complex<float>>& buff, vector<complex<float>>& sample_sum, float& inversion_phase, bool phase_dither) {
+  if (phase_dither) {
     inversion_phase = -1.0 * get_next_phase(false); // Get next phase from the generator each time to keep in sequence with TX
   }
 
@@ -73,7 +73,7 @@ void handleRxBuffer(size_t n_samps_in_rx_buff, rx_metadata_t& rx_md, Chirp& chir
   } else {
     pulses_received++;
 
-    if (chirp.getPhaseDither()) {
+    if (phase_dither) {
       // Undo phase modulation and divide by num_presums in one go
       transform(buff.begin(), buff.end(), buff.begin(), std::bind1st(std::multiplies<complex<float>>(), polar((float) 1.0/chirp.getNumPresums(), inversion_phase)));
     } else if (chirp.getNumPresums() != 1) {
@@ -446,7 +446,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
     n_samps_in_rx_buff = sdr.getRxStream()->recv(buffs, num_rx_samps, rx_md, 60.0, false); // TODO: Think about timeout
 
     // Check for errors in the RX buffer
-    handleRxBuffer(n_samps_in_rx_buff, rx_md, chirp, buff, sample_sum, inversion_phase);
+    handleRxBuffer(n_samps_in_rx_buff, rx_md, chirp, buff, sample_sum, inversion_phase, sdr.getPhaseDitherCh0());
     // Check if we have a full sample_sum ready to write to file
     if (!checkForFullSampleSum(chirp, sample_sum, outfile)) {exit(1);};
 
@@ -619,7 +619,7 @@ void transmit_worker(tx_streamer::sptr& tx_stream, rx_streamer::sptr& rx_stream,
   while ((chirp.getNumPulses() < 0) || ((pulses_scheduled - error_count) < chirp.getNumPulses()))
   {
     // Apply phase dithering to ch0 if enabled
-    if (chirp.getPhaseDither()) {
+    if (sdr.getPhaseDitherCh0()) {
       transform(chirp_unmodulated_ch0.begin(), chirp_unmodulated_ch0.end(), tx_buff_ch0.begin(), std::bind1st(std::multiplies<complex<float>>(), polar((float) 1.0, get_next_phase(true))));
     }
 

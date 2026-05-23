@@ -64,6 +64,8 @@ void Sdr::loadConfigFromYaml(const string& kYamlFile) {
   transmit = rf0["transmit"].as<bool>(true); // True if transmission enabled
   transmit_ch1 = rf1["transmit"].as<bool>(false); // True if ch1 independent waveform enabled
 
+  phase_dither_ch0 = config["GENERATE"]["phase_dithering"].as<bool>(false);
+
   // Load ch1 phase dithering and validate pulse length if GENERATE1 is present
   phase_dither_ch1 = false;
   if (config["GENERATE1"]) {
@@ -455,6 +457,7 @@ double Sdr::getBw() const {return bw;}
 string Sdr::getRxAnt() const {return rx_ant;}
 string Sdr::getTxAnt() const {return tx_ant;}
 bool Sdr::getTransmit() const {return transmit;}
+bool Sdr::getPhaseDitherCh0() const {return phase_dither_ch0;}
 bool Sdr::getTransmitCh1() const {return transmit_ch1;}
 bool Sdr::getPhaseDitherCh1() const {return phase_dither_ch1;}
 

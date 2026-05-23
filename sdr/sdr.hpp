@@ -43,6 +43,7 @@ class Sdr {
     string getRxAnt() const;
     string getTxAnt() const;
     bool getTransmit() const;
+    bool getPhaseDitherCh0() const;
     bool getTransmitCh1() const;
     bool getPhaseDitherCh1() const;
 
@@ -101,7 +102,8 @@ class Sdr {
     string rx_ant;  // Port to be used for RX
     string tx_ant;  // Port to be used for TX
     bool transmit;         // "true" (or not set) for normal operation, set to "false" to completely disable transmit
-    bool transmit_ch1;    // RF1.transmit: true enables independent waveform on TX channel 1
+    bool phase_dither_ch0; // GENERATE.phase_dithering: phase dithering for TX channel 0
+    bool transmit_ch1;     // RF1.transmit: true enables independent waveform on TX channel 1
     bool phase_dither_ch1; // GENERATE1.phase_dithering: independent phase dithering for ch1
 
     // USRP

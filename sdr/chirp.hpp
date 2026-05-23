@@ -18,7 +18,6 @@ public:
     double getTxLead() const;
     int getNumPulses() const;
     int getNumPresums() const;
-    bool getPhaseDither() const;
     int getMaxChirpsPerFile() const;
     void setMaxChirpsPerFile(int value);
 
@@ -34,7 +33,6 @@ private:
     double tx_lead;          // [s] Time between start of TX and RX
     int num_pulses;          // No. of chirps to TX/RX - set to -1 to continuously transmit pulses until stopped
     int num_presums;         // Number of received pulses to average over before writing to file
-    bool phase_dither;       // Enable phase dithering
     int max_chirps_per_file; // Maximum number of RX from a chirp to write to a single file set to -1 to avoid breaking
                              // into multiple files
 };

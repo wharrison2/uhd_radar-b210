@@ -30,7 +30,6 @@ void Chirp::assignVarFromYaml(const string& kYamlFile){
     tx_lead = chirp["tx_lead"].as<double>();
     num_pulses = chirp["num_pulses"].as<int>();
     num_presums = chirp["num_presums"].as<int>(1); // Default of 1 is equivalent to no pre-summing
-    phase_dither = chirp["phase_dithering"].as<bool>(false);
 
     /**
     * sanity checks for Chirp class
@@ -54,7 +53,6 @@ double Chirp::getPulseRepInt() const {return pulse_rep_int;}
 double Chirp::getTxLead() const {return tx_lead;}
 int Chirp::getNumPulses() const {return num_pulses;}
 int Chirp::getNumPresums() const {return num_presums;}
-bool Chirp::getPhaseDither() const {return phase_dither;}
 int Chirp::getMaxChirpsPerFile() const {return max_chirps_per_file;}
 
 void Chirp::setTimeOffset(double value) {
