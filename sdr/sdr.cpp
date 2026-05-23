@@ -65,6 +65,10 @@ void Sdr::loadConfigFromYaml(const string& kYamlFile) {
   transmit_ch1 = rf1["transmit"].as<bool>(false); // True if ch1 independent waveform enabled
 
   phase_dither_ch0 = config["GENERATE"]["phase_dithering"].as<bool>(false);
+  if (config["CHIRP"]["phase_dithering"]) {
+    cout << "WARNING: phase_dithering is set in the CHIRP section but is now read from GENERATE. "
+         << "The CHIRP value is being ignored. Move phase_dithering to the GENERATE section.\n";
+  }
 
   // Load ch1 phase dithering and validate pulse length if GENERATE1 is present
   phase_dither_ch1 = false;
