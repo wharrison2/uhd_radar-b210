@@ -1,0 +1,87 @@
+# Raspberry Pi sweep test config for error_code_late_command_sweep.py
+# Based on default.yaml with num_pulses reduced for faster iteration.
+# Run with: python tests/error_code_late_command_sweep.py config/rpi_sweep_test.yaml
+
+### CHIRP AND PULSE PARAMETERS
+GENERATE:
+    sample_rate: &s_rate 56e6            # [Hz] Sample rate
+    chirp_type: 'linear'
+    chirp_bandwidth: 25e6                # [Hz] Bandwidth of the chirp
+    lo_offset_sw: 0e6
+    window: 'rectangular'
+    chirp_length: &chirp_len 20e-6       # [s]
+    pulse_length: &pulse_len 20e-6       # [s]
+    out_file: &ch_sent "data/chirp.bin"
+    show_plot: False
+    phase_dithering: true
+
+### DEVICE CONNECTION AND DATA TRANSFER
+DEVICE:
+    device_args: "num_recv_frames=700,num_send_frames=700,recv_frame_size=11000,send_frame_size=11000"
+    subdev: "A:A"
+    clk_ref: "internal"
+    clk_rate: 56e6
+    tx_channels: "0"
+    rx_channels: "0"
+    cpu_format: "fc32"
+    otw_format: "sc12"
+
+### GPIO PIN CONFIGURATION
+GPIO:
+    gpio_bank: "FP0"
+    pwr_amp_pin: "-1"
+    ref_out: -1
+
+### RF FRONTEND 0 CONFIGURATION
+RF0:
+    rx_rate: *s_rate
+    tx_rate: *s_rate
+    freq: 450e6
+    lo_offset: 15e6
+    rx_gain: 36
+    tx_gain: 65
+    bw: 56e6
+    tx_ant: "TX/RX"
+    rx_ant: "RX2"
+    transmit: true
+    tuning_args: ""
+
+### RF FRONTEND 1 CONFIGURATION
+RF1:
+    rx_rate: *s_rate
+    tx_rate: *s_rate
+    freq: 450e6
+    lo_offset: 0e6
+    rx_gain: 10
+    tx_gain: 10
+    bw: 56e6
+    tx_ant: "TX/RX"
+    rx_ant: "RX2"
+    transmit: false
+    tuning_args: ""
+
+### PULSE TIMING
+CHIRP:
+    time_offset: 0.5                     # [s] reduced from 1.0 to save ~10s across sweep
+    tx_duration: *pulse_len
+    rx_duration: 20e-6
+    tr_on_lead: 0e-6
+    tr_off_trail: 0e-6
+    pulse_rep_int: 200e-6                # [s] starting point for sweep
+    tx_lead: 0e-6
+    num_pulses: &num_pulses 500          # reduced from 10000 — 500 pulses is enough for
+                                         # error rate statistics while cutting file I/O
+    num_presums: 1
+
+### DURING-RECORDING FILE LOCATIONS
+FILES:
+    chirp_loc: *ch_sent
+    save_loc: &save_loc "data/rx_samps.bin"
+    gps_loc: &gps_save_loc "data/gps_log.txt"
+    max_chirps_per_file: -1
+
+### RUN.PY FILE SAVE LOCATIONS
+RUN_MANAGER:
+    final_save_loc: null
+    save_partial_files: False
+    save_gps: False
