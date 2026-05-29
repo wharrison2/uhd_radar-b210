@@ -4,9 +4,9 @@
 
 ### CHIRP AND PULSE PARAMETERS
 GENERATE:
-    sample_rate: &s_rate 56e6            # [Hz] Sample rate
+    sample_rate: &s_rate 20e6            # [Hz] USB 2.0 ceiling on Pi (~60 MB/s / 3 bytes per sc12 sample)
     chirp_type: 'linear'
-    chirp_bandwidth: 25e6                # [Hz] Bandwidth of the chirp
+    chirp_bandwidth: 8e6                 # [Hz] Must be < sample_rate/2 (10 MHz Nyquist); 8 MHz gives headroom
     lo_offset_sw: 0e6
     window: 'rectangular'
     chirp_length: &chirp_len 20e-6       # [s]
@@ -20,7 +20,7 @@ DEVICE:
     device_args: "num_recv_frames=700,num_send_frames=700,recv_frame_size=11000,send_frame_size=11000"
     subdev: "A:A"
     clk_ref: "internal"
-    clk_rate: 56e6
+    clk_rate: 40e6                       # [Hz] 2x the sample rate; B210 works cleanly with integer multiples
     tx_channels: "0"
     rx_channels: "0"
     cpu_format: "fc32"
@@ -40,7 +40,7 @@ RF0:
     lo_offset: 15e6
     rx_gain: 36
     tx_gain: 65
-    bw: 56e6
+    bw: 20e6
     tx_ant: "TX/RX"
     rx_ant: "RX2"
     transmit: true
@@ -54,7 +54,7 @@ RF1:
     lo_offset: 0e6
     rx_gain: 10
     tx_gain: 10
-    bw: 56e6
+    bw: 20e6
     tx_ant: "TX/RX"
     rx_ant: "RX2"
     transmit: false

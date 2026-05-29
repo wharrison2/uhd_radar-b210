@@ -82,8 +82,8 @@ void Sdr::loadConfigFromYaml(const string& kYamlFile) {
                              : config["GENERATE"]["chirp_length"].as<double>();
     double sr = config["GENERATE"]["sample_rate"].as<double>();
     if (std::lround(ch1_pulse_len * sr) != std::lround(ch0_pulse_len * sr)) {
-      cout << "WARNING: GENERATE1.pulse_length produces a different sample count than GENERATE.pulse_length. "
-           << "Both TX channels must transmit the same number of samples.\n";
+      cout << "INFO: CH0 pulse_length (" << ch0_pulse_len*1e6 << " us) differs from CH1 ("
+           << ch1_pulse_len*1e6 << " us). The shorter channel will be zero-padded at the end.\n";
     }
   }
 

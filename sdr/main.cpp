@@ -18,9 +18,11 @@ string save_loc;
 string gps_save_loc;
 
 // Calculated Parameters
-double tr_off_delay; // Time before turning off GPIO
-size_t num_tx_samps; // Total samples to transmit per chirp
-size_t num_rx_samps; // Total samples to receive per chirp
+double tr_off_delay;          // Time before turning off GPIO
+size_t num_tx_samps_ch0;      // Samples in CH0 waveform file
+size_t num_tx_samps_ch1;      // Samples in CH1 waveform file (0 if not used)
+size_t num_tx_samps_burst;    // Samples sent per burst: max(ch0, ch1), shorter channel zero-padded at end
+size_t num_rx_samps;          // Total samples to receive per chirp
 
 // Global state
 long int pulses_scheduled = 0;
@@ -303,9 +305,26 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
 
   // Calculated parameters
 
-  tr_off_delay = chirp.getTxDuration() + chirp.getTrOffTrail(); // Time before turning off GPIO
-  num_tx_samps = sdr.getTxRate() * chirp.getTxDuration(); // Total samples to transmit per chirp // TODO: Should use ["GENERATE"]["sample_rate"] instead!
-  num_rx_samps = sdr.getRxRate() * chirp.getRxDuration(); // Total samples to receive per chirp // TODO: Should use ["GENERATE"]["sample_rate"] instead!
+  tr_off_delay = chirp.getTxDuration() + chirp.getTrOffTrail();
+  num_tx_samps_ch0 = (size_t)round(sdr.getTxRate() * config["GENERATE"]["pulse_length"].as<double>());
+  num_tx_samps_ch1 = 0;
+  if (!chirp1_loc.empty()) {
+    num_tx_samps_ch1 = (size_t)round(sdr.getTxRate() * config["GENERATE1"]["pulse_length"].as<double>());
+  }
+  num_tx_samps_burst = std::max(num_tx_samps_ch0, num_tx_samps_ch1);
+  num_rx_samps = (size_t)round(sdr.getRxRate() * chirp.getRxDuration());
+
+  {
+    double pri = chirp.getPulseRepInt();
+    double ratio0 = (num_tx_samps_ch0 / sdr.getTxRate()) / pri;
+    if (ratio0 > 0.9)
+      cout << "WARNING: CH0 pulse_length is " << (ratio0 * 100.0) << "% of pulse_rep_int.\n";
+    if (num_tx_samps_ch1 > 0) {
+      double ratio1 = (num_tx_samps_ch1 / sdr.getTxRate()) / pri;
+      if (ratio1 > 0.9)
+        cout << "WARNING: CH1 pulse_length is " << (ratio1 * 100.0) << "% of pulse_rep_int.\n";
+    }
+  }
 
 
   /** Thread, interrupt setup **/
@@ -327,15 +346,19 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
   cout << "Note: A full num_pulses of error-free chirp data will be collected. ";
   cout << "(Total number of TX chirps will be num_pulses + # errors)" << endl; 
   
-  cout << "INFO: Number of TX samples: " << num_tx_samps << endl;  //needs to be after chirp and sdr object are both made
-  cout << "INFO: Number of RX samples: " << num_rx_samps << endl << endl;  //needs to be after chirp and sdr object are both made
+  cout << "INFO: Number of TX samples (CH0): " << num_tx_samps_ch0 << endl;
+  if (num_tx_samps_ch1 > 0)
+    cout << "INFO: Number of TX samples (CH1): " << num_tx_samps_ch1 << endl;
+  cout << "INFO: TX burst length: " << num_tx_samps_burst << " samples" << endl;
+  cout << "INFO: Number of RX samples: " << num_rx_samps << endl << endl;
 
   /*** TX SUMMARY ***/
   {
     auto print_channel_summary = [](const string& label,
                                     double lo_freq, double lo_offset_sw,
                                     double chirp_bw, double tx_gain,
-                                    bool phase_dither, bool active) {
+                                    bool phase_dither, bool active,
+                                    double pulse_length_s) {
       double center = lo_freq + lo_offset_sw;
       cout << label << ":" << endl;
       if (!active) {
@@ -350,6 +373,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
            << " - " << (center + chirp_bw/2) / 1e6
            << " MHz  (BW " << chirp_bw/1e6 << " MHz)" << endl;
       cout << "  TX gain      : " << tx_gain << " dB" << endl;
+      cout << "  Pulse length : " << pulse_length_s * 1e6 << " us" << endl;
       cout << "  Phase dither : " << (phase_dither ? "enabled" : "disabled") << endl;
     };
 
@@ -361,7 +385,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
       config["GENERATE"]["chirp_bandwidth"].as<double>(0),
       config["RF0"]["tx_gain"].as<double>(),
       sdr.getPhaseDitherCh0(),
-      sdr.getTransmit()
+      sdr.getTransmit(),
+      num_tx_samps_ch0 / sdr.getTxRate()
     );
     if (config["GENERATE1"]) {
       print_channel_summary(
@@ -371,7 +396,9 @@ int UHD_SAFE_MAIN(int argc, char *argv[]) {
         config["GENERATE1"]["chirp_bandwidth"].as<double>(0),
         config["RF1"]["tx_gain"].as<double>(),
         sdr.getPhaseDitherCh1(),
-        sdr.getTransmitCh1()
+        sdr.getTransmitCh1(),
+        num_tx_samps_ch1 > 0 ? num_tx_samps_ch1 / sdr.getTxRate()
+                              : num_tx_samps_ch0 / sdr.getTxRate()
       );
     }
     cout << "==========================" << endl << endl;
@@ -617,13 +644,13 @@ void transmit_worker(tx_streamer::sptr& tx_stream, rx_streamer::sptr& rx_stream,
 
   const size_t bytes_per_samp = convert::get_bytes_per_item(sdr.getCpuFormat());
 
-  // Ch0 buffers
-  vector<std::complex<float>> tx_buff_ch0(num_tx_samps);
-  vector<std::complex<float>> chirp_unmodulated_ch0(num_tx_samps);
-  infile.read((char *)&chirp_unmodulated_ch0.front(), num_tx_samps * bytes_per_samp);
+  // Ch0 buffers — burst-sized, zero-initialized; only the first num_tx_samps_ch0 samples are loaded
+  vector<std::complex<float>> tx_buff_ch0(num_tx_samps_burst, {0, 0});
+  vector<std::complex<float>> chirp_unmodulated_ch0(num_tx_samps_burst, {0, 0});
+  infile.read((char *)&chirp_unmodulated_ch0.front(), num_tx_samps_ch0 * bytes_per_samp);
   tx_buff_ch0 = chirp_unmodulated_ch0;
 
-  // Ch1 buffers (only allocated and loaded if using an independent ch1 waveform)
+  // Ch1 buffers — burst-sized, zero-initialized; only the first num_tx_samps_ch1 samples are loaded
   const bool use_ch1_waveform = !chirp1_loc.empty();
   ifstream infile_ch1;
   vector<std::complex<float>> tx_buff_ch1;
@@ -639,9 +666,9 @@ void transmit_worker(tx_streamer::sptr& tx_stream, rx_streamer::sptr& rx_stream,
            << endl;
       exit(1);
     }
-    chirp_unmodulated_ch1.resize(num_tx_samps);
-    tx_buff_ch1.resize(num_tx_samps);
-    infile_ch1.read((char *)&chirp_unmodulated_ch1.front(), num_tx_samps * bytes_per_samp);
+    chirp_unmodulated_ch1.resize(num_tx_samps_burst, {0, 0});
+    tx_buff_ch1.resize(num_tx_samps_burst, {0, 0});
+    infile_ch1.read((char *)&chirp_unmodulated_ch1.front(), num_tx_samps_ch1 * bytes_per_samp);
     tx_buff_ch1 = chirp_unmodulated_ch1;
   }
 
@@ -713,10 +740,10 @@ void transmit_worker(tx_streamer::sptr& tx_stream, rx_streamer::sptr& rx_stream,
           static_cast<void*>(tx_buff_ch0.data()),
           static_cast<void*>(tx_buff_ch1.data())
         };
-        n_samp_tx = tx_stream->send(tx_buffs, num_tx_samps, tx_md, 60); // TODO: Think about timeout
+        n_samp_tx = tx_stream->send(tx_buffs, num_tx_samps_burst, tx_md, 60); // TODO: Think about timeout
       } else {
         // Single buffer broadcast to all channels (original behavior)
-        n_samp_tx = tx_stream->send(&tx_buff_ch0.front(), num_tx_samps, tx_md, 60); // TODO: Think about timeout
+        n_samp_tx = tx_stream->send(&tx_buff_ch0.front(), num_tx_samps_burst, tx_md, 60); // TODO: Think about timeout
       }
     }
 
